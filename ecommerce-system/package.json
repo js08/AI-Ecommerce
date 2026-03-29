@@ -1,0 +1,20 @@
+{
+  "name": "ecommerce-microservices",
+  "version": "1.0.0",
+  "scripts": {
+    "docker-up": "docker-compose up -d",
+    "docker-down": "docker-compose down",
+    "start:gateway": "cd api-gateway && npm start",
+    "start:user": "cd services/user-service && npm start",
+    "start:product": "cd services/product-service && npm start",
+    "start:cart": "cd services/cart-service && npm start",
+    "start:order": "cd services/order-service && npm start",
+    "start:payment": "cd services/payment-service && npm start",
+    "start:inventory": "cd services/inventory-service && npm start",
+    "start:notification": "cd services/notification-service && npm start",
+    "start:all": "concurrently \"npm run start:gateway\" \"npm run start:user\" \"npm run start:product\" \"npm run start:cart\" \"npm run start:order\" \"npm run start:payment\" \"npm run start:inventory\" \"npm run start:notification\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
