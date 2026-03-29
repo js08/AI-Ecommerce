@@ -1,0 +1,79 @@
+# Specifies the version of Docker Compose rules we are using
+# version: '3.8'
+
+# This section lists all the independent "worker" containers in your system
+services:
+
+  # --- 1. THE TRAFFIC COP (Load Balancer) ---
+  nginx:
+    # Use the latest official Nginx software from the internet
+    image: nginx:latest
+    # Connect your local settings (nginx.conf) to the container's brain
+    # ':ro' means 'read-only' so the container can't change your settings
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    # Map your computer's Port 80 (standard web) to Nginx's Port 80
+    ports:
+      - "80:80"
+    # Wait for the Gateway to be ready before starting the Traffic Cop
+    depends_on:
+      - api-gateway
+
+  # --- 2. THE RECEPTIONIST (API Gateway) ---
+  api-gateway:
+    # Go into the './api-gateway' folder and follow the 'Dockerfile' instructions to build it
+    build: ./api-gateway
+    # Open Port 8080 so the Nginx traffic cop can talk to this receptionist
+    ports:
+      - "8080:8080"
+
+  # --- 3. THE PRODUCT MANAGER (Microservice) ---
+  product-service:
+    # Go into the './product-service' folder and build this worker
+    build: ./product-service
+    # Provide the "Phone Numbers" (URLs) for the Database and Cache
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DB_HOST=postgres-primary
+    # Ensure the Database and Cache are "awake" before this worker starts
+    depends_on:
+      - redis
+      - postgres-primary
+
+  # --- 4. THE FAST MEMORY (Cache) ---
+  redis:
+    # Use 'alpine', which is a super-small and fast version of Redis
+    image: redis:alpine
+  
+  # --- 5. THE PERMANENT FILING CABINET (Main Database) ---
+  postgres-primary:
+    # Use version 15 of the PostgreSQL database engine
+    image: postgres:15
+    # Set the "Master Keys" (Username and Password) for the database
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ecommerce
+    # Open Port 5432 so your code can save and retrieve data
+    ports:
+      - "5432:5432"
+
+  # --- 6. THE KAFKA MANAGER (Zookeeper) ---
+  zookeeper:
+    # Kafka needs a "manager" called Zookeeper to stay organized
+    image: bitnami/zookeeper:latest
+    # Keep it simple for local testing by allowing easy login
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  # --- 7. THE POST OFFICE (Kafka Message Broker) ---
+  kafka:
+    # Use the Bitnami version of Kafka (very reliable for developers)
+    image: bitnami/kafka:latest
+    # Kafka cannot start until its manager (Zookeeper) is ready
+    depends_on:
+      - zookeeper
+    # Tell Kafka how to talk to Zookeeper and allow standard data transfers
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes

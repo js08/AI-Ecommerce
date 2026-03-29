@@ -1,0 +1,18 @@
+{
+  "name": "product-service",
+  "version": "1.0.0",
+  "description": "High-scale product management service",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "redis": "^4.6.10",
+    "pg": "^8.11.3",
+    "kafkajs": "^2.2.4",
+    "opossum": "^8.1.3",
+    "prom-client": "^15.0.0",
+    "express-rate-limit": "^7.1.0"
+  }
+}
