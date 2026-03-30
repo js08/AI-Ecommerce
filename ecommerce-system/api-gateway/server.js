@@ -286,6 +286,17 @@ app.post('/api/v1/inventory/release', inventoryServiceProxy);
 app.post('/api/v1/notifications/preferences', authenticate, writeLimiter, notificationServiceProxy);
 app.get('/api/v1/notifications/history', authenticate, notificationServiceProxy);
 
+
+// AI Service routes
+app.post('/api/ai/chat', authenticate, aiServiceProxy);
+app.get('/api/ai/recommendations/:userId', authenticate, aiServiceProxy);
+app.post('/api/ai/visual-search', authenticate, upload.single('image'), aiServiceProxy);
+app.post('/api/ai/fraud-check', authenticate, aiServiceProxy);
+app.post('/api/ai/sentiment', authenticate, aiServiceProxy);
+app.get('/api/ai/optimal-price/:productId', authenticate, aiServiceProxy);
+app.get('/api/ai/forecast/:productId', authenticate, aiServiceProxy);
+app.post('/api/ai/search', authenticate, aiServiceProxy);
+
 // ============ ERROR HANDLING ============
 
 // 404 handler for routes that don't exist

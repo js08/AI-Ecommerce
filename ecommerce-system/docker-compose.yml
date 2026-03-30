@@ -343,6 +343,28 @@ services:
       timeout: 10s
       retries: 5
 
+  # ============ SEARCH ENGINE ============
+
+
+  ai-service:
+    build: ./services/ai-service
+    container_name: ai-service
+    ports:
+      - "3005:3005"
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
 # ============ NETWORK CONFIGURATION ============
 networks:
   ecommerce-network:
@@ -361,3 +383,7 @@ volumes:
     driver: local
   elasticsearch_data:
     driver: local
+
+
+
+    
