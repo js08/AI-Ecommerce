@@ -14,7 +14,7 @@
 
 
 // Package declaration - organizes code in folders
-package com.ecommerce.orderservice;
+package com.example.ecommerce.orderservice;
 
 // Import necessary Spring Boot annotations
 import org.springframework.boot.SpringApplication;

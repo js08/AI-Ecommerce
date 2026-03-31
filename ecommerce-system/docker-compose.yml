@@ -1,184 +1,30 @@
-# version: '3.8'
+# Docker Compose V2 - no version needed
 
-# services:
-#   # ============ DATABASES ============
-  
-#   # PostgreSQL 1: User & Order Data (needs ACID compliance)
-#   # ACID = Atomicity, Consistency, Isolation, Durability - guarantees no data loss
-#   postgres_main:
-#     image: postgres:15
-#     container_name: postgres_main
-#     environment:
-#       POSTGRES_DB: ecommerce_main
-#       POSTGRES_USER: ecommerce_user
-#       POSTGRES_PASSWORD: secure_password_123
-#     ports:
-#       - "5432:5432"  # Host:Container port mapping
-#     volumes:
-#       - postgres_main_data:/var/lib/postgresql/data
-#     networks:
-#       - ecommerce-network
-#     healthcheck:
-#       test: ["CMD-SHELL", "pg_isready -U ecommerce_user"]
-#       interval: 10s
-#       timeout: 5s
-#       retries: 5
+networks:
+  ecommerce-network:
+    driver: bridge
+    name: ecommerce-network
 
-#   # PostgreSQL 2: Inventory Data (separate for better isolation)
-#   postgres_inventory:
-#     image: postgres:15
-#     container_name: postgres_inventory
-#     environment:
-#       POSTGRES_DB: ecommerce_inventory
-#       POSTGRES_USER: inventory_user
-#       POSTGRES_PASSWORD: inventory_password_123
-#     ports:
-#       - "5433:5432"  # Different port to avoid conflict
-#     volumes:
-#       - postgres_inventory_data:/var/lib/postgresql/data
-#     networks:
-#       - ecommerce-network
-
-#   # Cassandra: For high-write operations (product views, user sessions)
-#   # Cassandra is a NoSQL database - better for billions of writes
-#   cassandra:
-#     image: cassandra:4.1
-#     container_name: cassandra
-#     ports:
-#       - "9042:9042"  # CQL (Cassandra Query Language) port
-#     environment:
-#       CASSANDRA_CLUSTER_NAME: ecommerce_cluster
-#       CASSANDRA_NUM_TOKENS: 256
-#       CASSANDRA_SEEDS: cassandra
-#     volumes:
-#       - cassandra_data:/var/lib/cassandra
-#     networks:
-#       - ecommerce-network
-
-#   # ============ CACHING LAYER ============
-  
-#   # Redis Cluster: For caching (super fast, in-memory)
-#   # Redis Node 1
-#   redis_node1:
-#     image: redis:7-alpine
-#     container_name: redis_node1
-#     ports:
-#       - "6379:6379"
-#     command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file nodes.conf
-#     volumes:
-#       - redis_data1:/data
-#     networks:
-#       - ecommerce-network
-
-#   # Redis Node 2 (for high availability)
-#   redis_node2:
-#     image: redis:7-alpine
-#     container_name: redis_node2
-#     ports:
-#       - "6380:6379"
-#     command: redis-server --appendonly yes --cluster-enabled yes
-#     volumes:
-#       - redis_data2:/data
-#     networks:
-#       - ecommerce-network
-
-#   # ============ MESSAGE QUEUE ============
-  
-#   # Zookeeper: Manages Kafka cluster (keeps track of which brokers are alive)
-#   zookeeper:
-#     image: confluentinc/cp-zookeeper:latest
-#     container_name: zookeeper
-#     environment:
-#       ZOOKEEPER_CLIENT_PORT: 2181
-#       ZOOKEEPER_TICK_TIME: 2000
-#     ports:
-#       - "2181:2181"
-#     networks:
-#       - ecommerce-network
-
-#   # Kafka: Message broker for async communication between services
-#   # Handles millions of messages per second
-#   kafka:
-#     image: confluentinc/cp-kafka:latest
-#     container_name: kafka
-#     depends_on:
-#       - zookeeper
-#     environment:
-#       KAFKA_BROKER_ID: 1
-#       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-#       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-#       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-#       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-#       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-#       KAFKA_NUM_PARTITIONS: 10  # 10 partitions = can process 10 messages in parallel
-#     ports:
-#       - "9092:9092"
-#     networks:
-#       - ecommerce-network
-
-#   # Kafka UI: Web interface to see messages (helpful for debugging)
-#   kafka_ui:
-#     image: provectuslabs/kafka-ui:latest
-#     container_name: kafka_ui
-#     depends_on:
-#       - kafka
-#     environment:
-#       KAFKA_CLUSTERS_0_NAME: local
-#       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-#     ports:
-#       - "8080:8080"
-#     networks:
-#       - ecommerce-network
-
-#   # ============ SEARCH ENGINE ============
-  
-#   # Elasticsearch: For fast product search (like Google for products)
-#   elasticsearch:
-#     image: elasticsearch:8.10.0
-#     container_name: elasticsearch
-#     environment:
-#       - discovery.type=single-node
-#       - xpack.security.enabled=false  # Disable security for development
-#       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"  # Allocate 1GB RAM
-#     ports:
-#       - "9200:9200"  # REST API port
-#       - "9300:9300"  # Internal communication
-#     volumes:
-#       - elasticsearch_data:/usr/share/elasticsearch/data
-#     networks:
-#       - ecommerce-network
-
-# # ============ NETWORK CONFIGURATION ============
-# networks:
-#   ecommerce-network:
-#     driver: bridge  # Creates isolated network for all containers
-
-# # ============ PERSISTENT STORAGE ============
-# volumes:
-#   postgres_main_data:
-#   postgres_inventory_data:
-#   cassandra_data:
-#   redis_data1:
-#   redis_data2:
-#   elasticsearch_data:
-
-
-
-
-# Removed version attribute as it's obsolete in newer Docker Compose
-# Docker Compose now detects version automatically
+volumes:
+  postgres_main_data:
+  postgres_inventory_data:
+  redis_data:
+  kafka_data:
+  elasticsearch_data:
 
 services:
-  # ============ DATABASES ============
-  
-  # PostgreSQL 1: User & Order Data
-  postgres_main:
-    image: postgres:16-alpine  # Using alpine for smaller size
-    container_name: postgres_main
+  # ============================================
+  # DATABASES
+  # ============================================
+
+  postgres-main:
+    image: postgres:14-alpine
+    container_name: postgres-main
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ecommerce_main
       POSTGRES_USER: ecommerce_user
-      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_PASSWORD: ecommerce_password_123
     ports:
       - "5432:5432"
     volumes:
@@ -190,12 +36,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
 
-  # PostgreSQL 2: Inventory Data
-  postgres_inventory:
-    image: postgres:16-alpine
-    container_name: postgres_inventory
+  postgres-inventory:
+    image: postgres:14-alpine
+    container_name: postgres-inventory
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ecommerce_inventory
       POSTGRES_USER: inventory_user
@@ -206,59 +51,36 @@ services:
       - postgres_inventory_data:/var/lib/postgresql/data
     networks:
       - ecommerce-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Cassandra: Fixed with working version
-  cassandra:
-    image: cassandra:4.0  # Using stable 4.0 version instead of 4.1
-    container_name: cassandra
-    ports:
-      - "9042:9042"
-    environment:
-      CASSANDRA_CLUSTER_NAME: ecommerce_cluster
-      CASSANDRA_NUM_TOKENS: 256
-      CASSANDRA_SEEDS: cassandra
-      # Set resource limits for better performance on local machine
-      CASSANDRA_HEAP_NEWSIZE: 100M
-      CASSANDRA_MAX_HEAP_SIZE: 512M
-    volumes:
-      - cassandra_data:/var/lib/cassandra
-    networks:
-      - ecommerce-network
-    restart: unless-stopped
-    # Add resource limits to prevent system overload
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
-
-  # ============ CACHING LAYER ============
-  
-  # Redis - Single node for development (simpler)
   redis:
-    image: redis:7-alpine
+    image: redis:7.0-alpine
     container_name: redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
       - ecommerce-network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ============ MESSAGE QUEUE ============
-  
+  # ============================================
+  # KAFKA (Using Confluent images - most reliable)
+  # ============================================
+
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.4.0
     container_name: zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -266,39 +88,44 @@ services:
       - "2181:2181"
     networks:
       - ecommerce-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
+    restart: unless-stopped
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_NUM_PARTITIONS: 10
-      # Performance optimizations for local development
-      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
     ports:
       - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - ecommerce-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Kafka UI - Web interface for Kafka
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    container_name: kafka_ui
+    container_name: kafka-ui
+    restart: unless-stopped
     depends_on:
       - kafka
     environment:
@@ -309,20 +136,19 @@ services:
       - "8080:8080"
     networks:
       - ecommerce-network
-    restart: unless-stopped
 
-  # ============ SEARCH ENGINE ============
-  
-  # Elasticsearch: Using working version 8.6.0
+  # ============================================
+  # SEARCH ENGINE
+  # ============================================
+
   elasticsearch:
-    image: elasticsearch:8.6.0  # Changed to working version
+    image: elasticsearch:7.17.15
     container_name: elasticsearch
+    restart: unless-stopped
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false  # Disable security for development
-      - xpack.security.enrollment.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"  # Reduced memory for local development
-      - cluster.routing.allocation.disk.threshold_enabled=false  # Disable disk space checks
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -330,60 +156,71 @@ services:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - ecommerce-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
       interval: 30s
       timeout: 10s
       retries: 5
 
-  # ============ SEARCH ENGINE ============
+  # ============================================
+  # MICROSERVICES
+  # ============================================
 
-
-  ai-service:
-    build: ./services/ai-service
-    container_name: ai-service
-    ports:
-      - "3005:3005"
+  api-gateway:
+    image: node:18-alpine
+    container_name: api-gateway
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./api-gateway:/app
     environment:
-      - REDIS_HOST=redis
-      - POSTGRES_HOST=postgres
-      - KAFKA_BROKERS=kafka:9092
+      NODE_ENV: development
+      PORT: 3000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: your-super-secret-jwt-key
+    ports:
+      - "3000:3000"
+    networks:
+      - ecommerce-network
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    command: sh -c "npm install && node server.js"
+
+  ai-service:
+    image: node:18-slim
+    container_name: ai-service
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./services/ai-service:/app
+      - ./models-data:/app/models-data
+    environment:
+      NODE_ENV: development
+      PORT: 8008
+      DB_HOST: postgres-main
+      DB_PORT: 5432
+      DB_NAME: ecommerce_main
+      DB_USER: ecommerce_user
+      DB_PASSWORD: ecommerce_password_123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BROKERS: kafka:9092
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "8008:8008"
     networks:
       - ecommerce-network
-
-# ============ NETWORK CONFIGURATION ============
-networks:
-  ecommerce-network:
-    driver: bridge
-    name: ecommerce-network  # Explicit network name for easier reference
-
-# ============ PERSISTENT STORAGE ============
-volumes:
-  postgres_main_data:
-    driver: local
-  postgres_inventory_data:
-    driver: local
-  cassandra_data:
-    driver: local
-  redis_data:
-    driver: local
-  elasticsearch_data:
-    driver: local
-
-
-
-    
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    command: sh -c "npm install && node server.js"
