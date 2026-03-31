@@ -24,7 +24,7 @@ services:
     environment:
       POSTGRES_DB: ecommerce_main
       POSTGRES_USER: ecommerce_user
-      POSTGRES_PASSWORD: ecommerce_password_123
+      POSTGRES_PASSWORD: secure_password_123
     ports:
       - "5432:5432"
     volumes:
@@ -196,7 +196,7 @@ services:
     restart: unless-stopped
     working_dir: /app
     volumes:
-      - ./services/ai-service:/app
+      - ./ai-service:/app
       - ./models-data:/app/models-data
     environment:
       NODE_ENV: development
@@ -205,9 +205,10 @@ services:
       DB_PORT: 5432
       DB_NAME: ecommerce_main
       DB_USER: ecommerce_user
-      DB_PASSWORD: ecommerce_password_123
+      DB_PASSWORD: secure_password_123
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KAFKA_BROKER: kafka:9092
       KAFKA_BROKERS: kafka:9092
       ELASTICSEARCH_URL: http://elasticsearch:9200
     ports:

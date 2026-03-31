@@ -5,8 +5,14 @@
  * Can detect sentiment, emotions, and aspects
  */
 
-const { pipeline } = require('@xenova/transformers');
 const { logger } = require('../utils/logger');
+
+let pipeline = null;
+try {
+  ({ pipeline } = require('@xenova/transformers'));
+} catch {
+  logger.warn('@xenova/transformers not installed; using rule-based sentiment only');
+}
 
 class SentimentAnalyzer {
   constructor() {
@@ -21,22 +27,18 @@ class SentimentAnalyzer {
    */
   async initialize() {
     try {
-      // Load sentiment analysis model (distilbert-base-uncased-finetuned-sst-2-english)
-      this.sentimentPipeline = await pipeline('sentiment-analysis');
-      
-      // Load emotion detection model
-      this.emotionPipeline = await pipeline('text-classification', 
-        'j-hartmann/emotion-english-distilroberta-base');
-      
-      // Initialize aspect extractor (custom rule-based + ML)
+      if (typeof pipeline === 'function') {
+        this.sentimentPipeline = await pipeline('sentiment-analysis');
+        this.emotionPipeline = await pipeline('text-classification',
+          'j-hartmann/emotion-english-distilroberta-base');
+      }
       this.aspectExtractor = new AspectExtractor();
-      
       this.isInitialized = true;
       logger.info('Sentiment analyzer initialized');
-      
     } catch (error) {
-      logger.error('Failed to initialize sentiment analyzer:', error);
-      throw error;
+      logger.warn('Sentiment ML pipeline unavailable, using rules only:', error.message);
+      this.aspectExtractor = new AspectExtractor();
+      this.isInitialized = true;
     }
   }
   
@@ -50,18 +52,19 @@ class SentimentAnalyzer {
       await this.initialize();
     }
     
-    // Run sentiment analysis
+    if (!this.sentimentPipeline) {
+      const positive = /\b(good|great|excellent|love|amazing|perfect)\b/i.test(text);
+      const negative = /\b(bad|terrible|awful|hate|worst|poor)\b/i.test(text);
+      const label = positive && !negative ? 'positive' : negative ? 'negative' : 'neutral';
+      return { label, score: label === 'neutral' ? 0.5 : 0.85, confidence: 0.6, raw: { ruleBased: true } };
+    }
+
     const result = await this.sentimentPipeline(text);
-    
-    // Adjust confidence based on context
     let adjustedScore = result[0].score;
     let adjustedLabel = result[0].label;
-    
     if (context === 'product_review') {
-      // Product reviews tend to be more nuanced
       adjustedScore = this.adjustReviewSentiment(text, result[0]);
     }
-    
     return {
       label: adjustedLabel.toLowerCase(),
       score: adjustedScore,
@@ -95,8 +98,10 @@ class SentimentAnalyzer {
    * Detect emotions in text
    */
   async detectEmotions(text) {
+    if (!this.emotionPipeline) {
+      return { primary: 'neutral', score: 0.5, all: [] };
+    }
     const result = await this.emotionPipeline(text);
-    
     return {
       primary: result[0].label,
       score: result[0].score,

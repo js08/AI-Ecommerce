@@ -23,41 +23,27 @@ const { createClient } = require('redis');
 const { Pool } = require('pg');
 
 // Import AI/ML modules
-const { 
-  RecommendationEngine, 
-  trainRecommendationModel 
-} = require('./src/models/recommendationModel');
+const { RecommendationEngine } = require('./models/recommendationEngine');
+const { FraudDetectionModel, detectFraud } = require('./models/fraudDetectionModel');
+const { PriceOptimizer } = require('./models/priceOptimizer');
+const { SentimentAnalyzer } = require('./models/sentimentAnalyzer');
 
-const { 
-  FraudDetectionModel, 
-  detectFraud 
-} = require('./src/models/fraudDetectionModel');
-
-const { 
-  PriceOptimizer, 
-  optimizePrice 
-} = require('./src/models/priceOptimizer');
-
-const { 
-  SentimentAnalyzer, 
-  analyzeSentiment 
-} = require('./src/models/sentimentAnalyzer');
-
-const { VisualSearchService } = require('./src/services/visualSearchService');
-const { ChatbotService } = require('./src/services/chatbotService');
-const { ForecastService } = require('./src/services/forecastService');
+const { VisualSearchService } = require('./services/visualSearchService');
+const { ChatbotService } = require('./services/chatbotService');
+const { ForecastService } = require('./services/forecastService');
 
 // Import utilities
-const { VectorStore } = require('./src/utils/vectorStore');
-const { ImageProcessor } = require('./src/utils/imageProcessor');
-const { logger } = require('./src/utils/logger');
+const { VectorStore } = require('./utils/vectorStore');
+const { ImageProcessor } = require('./utils/imageProcessor');
+const { logger } = require('./utils/logger');
 
 // Load configuration
-const config = require('./src/config/modelConfig');
+const config = require('./config/modelConfig');
 
 // Initialize Express app
 const app = express();
-const PORT = process.env.PORT || 8008;
+// Do not use generic PORT (often set by React tooling); gateway expects AI on 8008
+const PORT = parseInt(process.env.AI_SERVICE_PORT || '8008', 10);
 
 // ============ MIDDLEWARE ============
 app.use(helmet()); // Security headers
@@ -91,7 +77,7 @@ const pgPool = new Pool({
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'ecommerce_main',
   user: process.env.DB_USER || 'ecommerce_user',
-  password: process.env.DB_PASSWORD || 'password',
+  password: process.env.DB_PASSWORD || 'secure_password_123',
   max: 20 // Connection pool size
 });
 
@@ -104,9 +90,12 @@ const redisClient = createClient({
 });
 
 // Kafka for real-time event streaming
+const kafkaBrokers = (process.env.KAFKA_BROKERS || process.env.KAFKA_BROKER || 'localhost:9092')
+  .split(',')
+  .map((s) => s.trim());
 const kafka = new Kafka({
   clientId: 'ai-service',
-  brokers: [process.env.KAFKA_BROKER || 'localhost:9092']
+  brokers: kafkaBrokers
 });
 
 const kafkaConsumer = kafka.consumer({ groupId: 'ai-service-group' });
@@ -130,50 +119,48 @@ let vectorStore = null;
  */
 async function initializeModels() {
   logger.info('Initializing AI models...');
-  
-  try {
-    // Load recommendation model (TensorFlow.js model)
+
+  const run = async (name, fn) => {
+    try {
+      await fn();
+      logger.info(`✓ ${name}`);
+    } catch (err) {
+      logger.warn(`⚠ ${name} skipped:`, err.message);
+    }
+  };
+
+  await run('Recommendation model', async () => {
     recommendationEngine = await RecommendationEngine.load();
-    logger.info('✓ Recommendation model loaded');
-    
-    // Load fraud detection model (ONNX model)
+  });
+  await run('Fraud detection model', async () => {
     fraudModel = await FraudDetectionModel.load();
-    logger.info('✓ Fraud detection model loaded');
-    
-    // Initialize price optimizer
+  });
+  await run('Price optimizer', async () => {
     priceOptimizer = new PriceOptimizer();
-    logger.info('✓ Price optimizer initialized');
-    
-    // Initialize sentiment analyzer (BERT-based)
+  });
+  await run('Sentiment analyzer', async () => {
     sentimentAnalyzer = new SentimentAnalyzer();
     await sentimentAnalyzer.initialize();
-    logger.info('✓ Sentiment analyzer initialized');
-    
-    // Initialize vector store for embeddings (ChromaDB)
-    vectorStore = new VectorStore();
+  });
+  await run('Vector store', async () => {
+    vectorStore = new VectorStore(pgPool);
     await vectorStore.initialize();
-    logger.info('✓ Vector store initialized');
-    
-    // Initialize visual search service
-    visualSearchService = new VisualSearchService(vectorStore);
-    logger.info('✓ Visual search service initialized');
-    
-    // Initialize chatbot (LangChain + OpenAI compatible)
+  });
+  await run('Visual search', async () => {
+    if (!vectorStore) throw new Error('no vector store');
+    visualSearchService = new VisualSearchService(vectorStore, pgPool);
+  });
+  await run('Chatbot', async () => {
+    if (!vectorStore) throw new Error('no vector store');
     chatbotService = new ChatbotService(vectorStore);
     await chatbotService.initialize();
-    logger.info('✓ Chatbot service initialized');
-    
-    // Initialize demand forecasting
+  });
+  await run('Forecast service', async () => {
     forecastService = new ForecastService(pgPool);
     await forecastService.initialize();
-    logger.info('✓ Forecast service initialized');
-    
-    logger.info('✅ All AI models initialized successfully');
-    
-  } catch (error) {
-    logger.error('Failed to initialize models:', error);
-    throw error;
-  }
+  });
+
+  logger.info('✅ AI model initialization pass completed (some modules may be skipped)');
 }
 
 // ============ KAFKA EVENT HANDLERS ============
@@ -952,47 +939,51 @@ function generateForecastInsights(forecast) {
 
 async function startServer() {
   try {
-    // Connect to databases
-    await pgPool.connect();
-    await redisClient.connect();
-    logger.info('Database connections established');
-    
-    // Initialize AI models
-    await initializeModels();
-    
-    // Setup Kafka consumers
-    await setupKafkaConsumers();
-    
-    // Start HTTP server
-    app.listen(PORT, () => {
-      logger.info(`
-╔═══════════════════════════════════════════════════════════════╗
-║   🤖 AI SERVICE STARTED SUCCESSFULLY                          ║
-╠═══════════════════════════════════════════════════════════════╣
-║   Port: ${PORT}                                                   ║
-║   Models Loaded:                                              ║
-║   - Recommendation Engine    ✓                               ║
-║   - Fraud Detection          ✓                               ║
-║   - Price Optimizer          ✓                               ║
-║   - Sentiment Analyzer       ✓                               ║
-║   - Visual Search            ✓                               ║
-║   - Chatbot                  ✓                               ║
-║   - Demand Forecasting       ✓                               ║
-╚═══════════════════════════════════════════════════════════════╝
-      `);
-    });
-    
-  } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
+    await pgPool.query('SELECT 1');
+    logger.info('PostgreSQL reachable');
+  } catch (e) {
+    logger.warn('PostgreSQL unavailable — DB-backed AI features degraded:', e.message);
   }
+
+  try {
+    await redisClient.connect();
+    logger.info('Redis connected');
+  } catch (e) {
+    logger.warn('Redis unavailable — prediction cache disabled:', e.message);
+  }
+
+  try {
+    await initializeModels();
+  } catch (e) {
+    logger.warn('Model initialization incomplete:', e.message);
+  }
+
+  try {
+    await setupKafkaConsumers();
+  } catch (kafkaErr) {
+    logger.warn('Kafka consumers not started:', kafkaErr.message);
+  }
+
+  app.listen(PORT, () => {
+    logger.info(`
+╔═══════════════════════════════════════════════════════════════╗
+║   🤖 AI SERVICE LISTENING (degraded if DB/Redis/Kafka down)   ║
+╠═══════════════════════════════════════════════════════════════╣
+║   Port: ${PORT}                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+    `);
+  });
 }
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
-  await kafkaConsumer.disconnect();
-  await kafkaProducer.disconnect();
+  try {
+    await kafkaConsumer.disconnect();
+  } catch (_) {}
+  try {
+    await kafkaProducer.disconnect();
+  } catch (_) {}
   await pgPool.end();
   await redisClient.quit();
   process.exit(0);

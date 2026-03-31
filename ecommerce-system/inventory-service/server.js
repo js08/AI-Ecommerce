@@ -5,10 +5,12 @@
 
 const express = require('express');
 const { Pool } = require('pg');
-const { createProducer, createConsumer, TOPICS } = require('../../shared/kafka-config');
+const { createProducer, createConsumer, TOPICS } = require('../shared/kafka-config');
 const Redis = require('ioredis');
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // ============ DATABASE CONNECTION ============
@@ -53,7 +55,7 @@ const initDatabase = async () => {
     console.log('✅ Inventory database tables ready');
 };
 
-initDatabase();
+initDatabase().catch((e) => console.error('Inventory initDatabase:', e.message));
 
 // ============ REDIS FOR RAPID STOCK CHECKS ============
 const redis = new Redis({ host: 'localhost', port: 6379 });
@@ -63,44 +65,59 @@ const redis = new Redis({ host: 'localhost', port: 6379 });
 let kafkaProducer = null;
 let kafkaConsumer = null;
 
-const setupKafka = async () => {
-    kafkaProducer = await createProducer('inventory-service');
-    kafkaConsumer = await createConsumer(
-        'inventory-service',
-        'inventory-service-group',
-        [TOPICS.ORDER_EVENTS, TOPICS.INVENTORY_UPDATES]
-    );
-    
-    await kafkaConsumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-            const event = JSON.parse(message.value.toString());
-            console.log(`📦 Inventory service received: ${event.eventType}`);
-            
-            switch (event.eventType) {
-                case 'ORDER_CREATED':
-                    await reserveInventory(event);
-                    break;
-                    
-                case 'RELEASE_INVENTORY':
-                    await releaseInventory(event);
-                    break;
-                    
-                case 'PRODUCT_UPDATED':
-                    if (event.stock !== undefined) {
-                        await updateStock(event.productId, event.stock);
-                    }
-                    break;
-                    
-                default:
-                    console.log('Unknown inventory event:', event.eventType);
-            }
-        }
-    });
-    
-    console.log('✅ Kafka setup complete');
+const safeKafkaSend = async (payload) => {
+    if (!kafkaProducer) return;
+    try {
+        await kafkaProducer.send(payload);
+    } catch (e) {
+        console.warn('Kafka send:', e.message);
+    }
 };
 
-setupKafka();
+const setupKafka = async () => {
+    try {
+        kafkaProducer = await createProducer('inventory-service');
+        kafkaConsumer = await createConsumer(
+            'inventory-service',
+            'inventory-service-group',
+            [TOPICS.ORDER_EVENTS, TOPICS.INVENTORY_UPDATES]
+        );
+
+        await kafkaConsumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                const event = JSON.parse(message.value.toString());
+                console.log(`📦 Inventory service received: ${event.eventType}`);
+
+                switch (event.eventType) {
+                    case 'ORDER_CREATED':
+                        await reserveInventory(event);
+                        break;
+
+                    case 'RELEASE_INVENTORY':
+                        await releaseInventory(event);
+                        break;
+
+                    case 'PRODUCT_UPDATED':
+                        if (event.stock !== undefined) {
+                            await updateStock(event.productId, event.stock);
+                        }
+                        break;
+
+                    default:
+                        console.log('Unknown inventory event:', event.eventType);
+                }
+            }
+        });
+
+        console.log('✅ Kafka setup complete');
+    } catch (e) {
+        console.warn('⚠️ Inventory Kafka unavailable (API still up):', e.message);
+        kafkaProducer = null;
+        kafkaConsumer = null;
+    }
+};
+
+setupKafka().catch((e) => console.warn('Kafka setup:', e.message));
 
 // ============ HELPER FUNCTIONS ============
 
@@ -266,7 +283,7 @@ const reserveInventory = async (event) => {
             await client.query('COMMIT');
             
             // Send success event
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.INVENTORY_EVENTS,
                 messages: [{
                     key: orderId.toString(),
@@ -281,7 +298,7 @@ const reserveInventory = async (event) => {
             await client.query('ROLLBACK');
             
             // Send failure event
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.INVENTORY_EVENTS,
                 messages: [{
                     key: orderId.toString(),
@@ -300,7 +317,7 @@ const reserveInventory = async (event) => {
         await client.query('ROLLBACK');
         console.error('Reserve inventory error:', error);
         
-        await kafkaProducer.send({
+        await safeKafkaSend({
             topic: TOPICS.INVENTORY_EVENTS,
             messages: [{
                 key: orderId.toString(),
@@ -409,6 +426,10 @@ app.post('/api/v1/inventory/reserve', async (req, res) => {
         console.error('Reserve API error:', error);
         res.status(500).json({ error: 'Failed to reserve stock' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'inventory-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

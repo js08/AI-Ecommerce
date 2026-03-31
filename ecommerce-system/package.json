@@ -2,17 +2,23 @@
   "name": "ecommerce-microservices",
   "version": "1.0.0",
   "scripts": {
-    "docker-up": "docker-compose up -d",
-    "docker-down": "docker-compose down",
+    "docker-up": "docker compose up -d",
+    "docker-down": "docker compose down",
     "start:gateway": "cd api-gateway && npm start",
-    "start:user": "cd services/user-service && npm start",
-    "start:product": "cd services/product-service && npm start",
-    "start:cart": "cd services/cart-service && npm start",
-    "start:order": "cd services/order-service && npm start",
-    "start:payment": "cd services/payment-service && npm start",
-    "start:inventory": "cd services/inventory-service && npm start",
-    "start:notification": "cd services/notification-service && npm start",
-    "start:all": "concurrently \"npm run start:gateway\" \"npm run start:user\" \"npm run start:product\" \"npm run start:cart\" \"npm run start:order\" \"npm run start:payment\" \"npm run start:inventory\" \"npm run start:notification\""
+    "start:user": "cd user-service && npm start",
+    "start:product": "cd product-service && npm start",
+    "start:cart": "cd cart-service && npm start",
+    "start:order": "cd order-service && npm start",
+    "start:payment": "cd payment-service && npm start",
+    "start:inventory": "cd inventory-service && npm start",
+    "start:notification": "cd notification-service && npm start",
+    "start:ai": "cd ai-service && set AI_SERVICE_PORT=8008&& npm start",
+    "start:dashboard": "cd microservices-dashboard && npm start",
+    "start:backends": "concurrently -n gw,user,prod,cart,ord,pay,inv,notif,ai \"npm run start:gateway\" \"npm run start:user\" \"npm run start:product\" \"npm run start:cart\" \"npm run start:order\" \"npm run start:payment\" \"npm run start:inventory\" \"npm run start:notification\" \"npm run start:ai\"",
+    "start:all": "concurrently -n gw,user,prod,cart,ord,pay,inv,notif,ai,ui \"npm run start:gateway\" \"npm run start:user\" \"npm run start:product\" \"npm run start:cart\" \"npm run start:order\" \"npm run start:payment\" \"npm run start:inventory\" \"npm run start:notification\" \"npm run start:ai\" \"npm run start:dashboard\""
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

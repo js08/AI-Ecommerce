@@ -21,10 +21,7 @@ class VectorStore {
     logger.info('Initializing vector store');
     
     try {
-      // Create extension for vector support
       await this.db.query('CREATE EXTENSION IF NOT EXISTS vector');
-      
-      // Create tables if not exist
       await this.db.query(`
         CREATE TABLE IF NOT EXISTS vector_embeddings (
           id SERIAL PRIMARY KEY,
@@ -36,23 +33,28 @@ class VectorStore {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      
-      // Create indexes for faster search
       await this.db.query(`
         CREATE INDEX IF NOT EXISTS idx_vector_collection 
         ON vector_embeddings(collection_name)
       `);
-      
       await this.db.query(`
         CREATE INDEX IF NOT EXISTS idx_vector_entity 
         ON vector_embeddings(entity_id, entity_type)
       `);
-      
       logger.info('Vector store initialized successfully');
-      
     } catch (error) {
-      logger.error('Failed to initialize vector store:', error);
-      throw error;
+      logger.warn('pgvector unavailable, using JSONB fallback:', error.message);
+      await this.db.query(`
+        CREATE TABLE IF NOT EXISTS vector_embeddings (
+          id SERIAL PRIMARY KEY,
+          collection_name VARCHAR(100) NOT NULL,
+          entity_id INTEGER NOT NULL,
+          entity_type VARCHAR(50),
+          embedding JSONB,
+          metadata JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
     }
   }
 

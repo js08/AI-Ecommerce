@@ -8,11 +8,13 @@ const express = require('express');
 const { Pool } = require('pg');
 const Redis = require('ioredis');
 const { Client } = require('@elastic/elasticsearch');
-const { createProducer, createConsumer, TOPICS } = require('../../shared/kafka-config');
+const { createProducer, createConsumer, TOPICS } = require('../shared/kafka-config');
 const multer = require('multer');  // For image uploads
 const sharp = require('sharp');    // For image optimization
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // ============ DATABASE CONNECTIONS ============
@@ -82,7 +84,7 @@ const initDatabase = async () => {
     console.log('✅ Product database tables ready');
 };
 
-initDatabase();
+initDatabase().catch((e) => console.error('Product initDatabase:', e.message));
 
 // ============ ELASTICSEARCH SETUP ============
 
@@ -126,39 +128,51 @@ setupElasticsearch();
 let kafkaProducer = null;
 let kafkaConsumer = null;
 
-const setupKafka = async () => {
-    kafkaProducer = await createProducer('product-service');
-    kafkaConsumer = await createConsumer(
-        'product-service',
-        'product-service-group',
-        [TOPICS.INVENTORY_UPDATES, TOPICS.ORDER_EVENTS]
-    );
-    
-    // Process incoming messages
-    await kafkaConsumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-            const event = JSON.parse(message.value.toString());
-            console.log(`📨 Received event: ${event.eventType}`);
-            
-            switch (event.eventType) {
-                case 'ORDER_CREATED':
-                    // Update product stats when order is created
-                    await updateProductStats(event.productId);
-                    break;
-                case 'PRODUCT_UPDATED':
-                    // Re-index product in Elasticsearch
-                    await indexProductInElasticsearch(event.productId);
-                    break;
-                default:
-                    console.log('Unknown event type:', event.eventType);
-            }
-        }
-    });
-    
-    console.log('✅ Kafka setup complete');
+const safeKafkaSend = async (payload) => {
+    if (!kafkaProducer) return;
+    try {
+        await kafkaProducer.send(payload);
+    } catch (e) {
+        console.warn('Kafka send:', e.message);
+    }
 };
 
-setupKafka();
+const setupKafka = async () => {
+    try {
+        kafkaProducer = await createProducer('product-service');
+        kafkaConsumer = await createConsumer(
+            'product-service',
+            'product-service-group',
+            [TOPICS.INVENTORY_UPDATES, TOPICS.ORDER_EVENTS]
+        );
+
+        await kafkaConsumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                const event = JSON.parse(message.value.toString());
+                console.log(`📨 Received event: ${event.eventType}`);
+
+                switch (event.eventType) {
+                    case 'ORDER_CREATED':
+                        await updateProductStats(event.productId);
+                        break;
+                    case 'PRODUCT_UPDATED':
+                        await indexProductInElasticsearch(event.productId);
+                        break;
+                    default:
+                        console.log('Unknown event type:', event.eventType);
+                }
+            }
+        });
+
+        console.log('✅ Kafka setup complete');
+    } catch (e) {
+        console.warn('⚠️ Product Kafka unavailable:', e.message);
+        kafkaProducer = null;
+        kafkaConsumer = null;
+    }
+};
+
+setupKafka().catch((e) => console.warn('Kafka setup:', e.message));
 
 // ============ HELPER FUNCTIONS ============
 
@@ -430,7 +444,7 @@ app.post('/api/v1/products', async (req, res) => {
         
         // Send event to Kafka
         if (kafkaProducer) {
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.PRODUCT_EVENTS,
                 messages: [{
                     key: product.id.toString(),
@@ -503,7 +517,7 @@ app.put('/api/v1/products/:id', async (req, res) => {
         
         // Send update event
         if (kafkaProducer) {
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.PRODUCT_EVENTS,
                 messages: [{
                     key: productId.toString(),
@@ -584,6 +598,10 @@ app.get('/api/v1/categories', async (req, res) => {
         console.error('Get categories error:', error);
         res.status(500).json({ error: 'Failed to get categories' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'product-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

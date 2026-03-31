@@ -207,4 +207,18 @@ class FraudDetectionModel {
   }
 }
 
-module.exports = { FraudDetectionModel };
+async function detectFraud(model, event) {
+  const features = {
+    amount: event.amount || 0,
+    velocity: event.velocity || 0,
+    location: event.location || '',
+    normalLocation: event.normalLocation || '',
+    deviceTrust: event.deviceTrust ?? 0.5,
+    timeOfDay: event.timeOfDay ?? 12,
+    userAge: event.userAge ?? 30
+  };
+  const result = await model.predict(features);
+  return result.fraudProbability ?? 0;
+}
+
+module.exports = { FraudDetectionModel, detectFraud };

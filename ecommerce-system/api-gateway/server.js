@@ -3,6 +3,18 @@
 // All client requests (web/mobile) go through here first
 // ============================================
 
+const fs = require('fs');
+const path = require('path');
+const envFile = path.join(__dirname, '.env');
+if (fs.existsSync(envFile)) {
+  fs.readFileSync(envFile, 'utf8').split(/\r?\n/).forEach((line) => {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) return;
+    const m = t.match(/^([^=]+)=(.*)$/);
+    if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
+  });
+}
+
 const express = require('express');
 const httpProxy = require('express-http-proxy');
 const rateLimit = require('express-rate-limit');
@@ -10,6 +22,10 @@ const cors = require('cors');
 const Redis = require('ioredis');
 const helmet = require('helmet');  // Security headers
 const compression = require('compression');  // Compress responses (faster transfer)
+
+const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8008';
 
 // Initialize Express app
 const app = express();
@@ -26,7 +42,15 @@ app.use(compression());
 // Enable CORS for specific origins only (not * in production)
 // CORS allows web browsers to call this API from different domains
 app.use(cors({
-    origin: ['https://yourecommerce.com', 'http://localhost:3000'],
+    origin: [
+        'https://yourecommerce.com',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3010',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3010',
+        'http://127.0.0.1:3000'
+    ],
     credentials: true
 }));
 
@@ -38,18 +62,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // ============ REDIS CONNECTION (for caching and sessions) ============
 
-// Redis Cluster for high availability
-// Connect to multiple Redis nodes (if one fails, others work)
-const redis = new Redis.Cluster([
-    { host: 'localhost', port: 6379 },
-    { host: 'localhost', port: 6380 }
-], {
-    scaleReads: 'slave',  // Distribute read queries to replicas
-    retryDelayOnFailover: 100,  // Retry quickly if failover occurs
-    maxRedirections: 16
+// Single Redis node (matches docker-compose redis:6379; use REDIS_HOST/REDIS_PORT in Docker)
+const redis = new Redis({
+    host: REDIS_HOST,
+    port: REDIS_PORT,
+    retryStrategy: (times) => Math.min(times * 100, 3000)
 });
 
-redis.on('connect', () => console.log('✅ Redis cluster connected'));
+redis.on('connect', () => console.log('✅ Redis connected'));
 redis.on('error', (err) => console.error('Redis error:', err));
 
 // ============ RATE LIMITING ============
@@ -198,6 +218,7 @@ const orderServiceProxy = createProxy('http://localhost:3004');
 const paymentServiceProxy = createProxy('http://localhost:3005');
 const inventoryServiceProxy = createProxy('http://localhost:3006');
 const notificationServiceProxy = createProxy('http://localhost:3007');
+const aiServiceProxy = createProxy(AI_SERVICE_URL);
 
 // ============ ROUTES ============
 
@@ -290,7 +311,8 @@ app.get('/api/v1/notifications/history', authenticate, notificationServiceProxy)
 // AI Service routes
 app.post('/api/ai/chat', authenticate, aiServiceProxy);
 app.get('/api/ai/recommendations/:userId', authenticate, aiServiceProxy);
-app.post('/api/ai/visual-search', authenticate, upload.single('image'), aiServiceProxy);
+// Multipart forwarded as-is to ai-service (do not parse body here)
+app.post('/api/ai/visual-search', authenticate, aiServiceProxy);
 app.post('/api/ai/fraud-check', authenticate, aiServiceProxy);
 app.post('/api/ai/sentiment', authenticate, aiServiceProxy);
 app.get('/api/ai/optimal-price/:productId', authenticate, aiServiceProxy);
@@ -332,7 +354,7 @@ app.listen(PORT, () => {
     ╠═══════════════════════════════════════════════════════╣
     ║  Port: ${PORT}                                           ║
     ║  Environment: ${process.env.NODE_ENV || 'development'}                           ║
-    ║  Redis: Connected to cluster                          ║
+    ║  Redis: ${REDIS_HOST}:${REDIS_PORT}                    ║
     ╚═══════════════════════════════════════════════════════╝
     `);
     

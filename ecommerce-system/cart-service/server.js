@@ -6,8 +6,10 @@
 const express = require('express');
 const Redis = require('ioredis');
 const axios = require('axios');  // To fetch product details
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // ============ REDIS CONNECTION ============
@@ -278,6 +280,10 @@ app.get('/api/v1/cart/summary', async (req, res) => {
         console.error('Cart summary error:', error);
         res.status(500).json({ error: 'Failed to get cart summary' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'cart-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

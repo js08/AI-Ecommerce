@@ -5,11 +5,13 @@
 
 const express = require('express');
 const { Pool } = require('pg');
-const { createProducer, createConsumer, TOPICS } = require('../../shared/kafka-config');
+const { createProducer, createConsumer, TOPICS } = require('../shared/kafka-config');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');  // For idempotency keys
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // ============ DATABASE CONNECTION ============
@@ -68,54 +70,68 @@ const initDatabase = async () => {
     console.log('✅ Order database tables ready');
 };
 
-initDatabase();
+initDatabase().catch((e) => console.error('Order initDatabase:', e.message));
 
 // ============ KAFKA SETUP ============
 
 let kafkaProducer = null;
 let kafkaConsumer = null;
 
-const setupKafka = async () => {
-    kafkaProducer = await createProducer('order-service');
-    kafkaConsumer = await createConsumer(
-        'order-service',
-        'order-service-group',
-        [TOPICS.ORDER_PAYMENT, TOPICS.INVENTORY_EVENTS]
-    );
-    
-    // Process responses from payment and inventory services
-    await kafkaConsumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-            const event = JSON.parse(message.value.toString());
-            console.log(`📨 Order service received: ${event.eventType}`);
-            
-            switch (event.eventType) {
-                case 'PAYMENT_SUCCESS':
-                    await handlePaymentSuccess(event);
-                    break;
-                    
-                case 'PAYMENT_FAILED':
-                    await handlePaymentFailure(event);
-                    break;
-                    
-                case 'INVENTORY_RESERVED':
-                    await handleInventoryReserved(event);
-                    break;
-                    
-                case 'INVENTORY_FAILED':
-                    await handleInventoryFailed(event);
-                    break;
-                    
-                default:
-                    console.log('Unknown event:', event.eventType);
-            }
-        }
-    });
-    
-    console.log('✅ Kafka setup complete');
+const safeKafkaSend = async (payload) => {
+    if (!kafkaProducer) return;
+    try {
+        await kafkaProducer.send(payload);
+    } catch (e) {
+        console.warn('Kafka send:', e.message);
+    }
 };
 
-setupKafka();
+const setupKafka = async () => {
+    try {
+        kafkaProducer = await createProducer('order-service');
+        kafkaConsumer = await createConsumer(
+            'order-service',
+            'order-service-group',
+            [TOPICS.ORDER_PAYMENT, TOPICS.INVENTORY_EVENTS]
+        );
+
+        await kafkaConsumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                const event = JSON.parse(message.value.toString());
+                console.log(`📨 Order service received: ${event.eventType}`);
+
+                switch (event.eventType) {
+                    case 'PAYMENT_SUCCESS':
+                        await handlePaymentSuccess(event);
+                        break;
+
+                    case 'PAYMENT_FAILED':
+                        await handlePaymentFailure(event);
+                        break;
+
+                    case 'INVENTORY_RESERVED':
+                        await handleInventoryReserved(event);
+                        break;
+
+                    case 'INVENTORY_FAILED':
+                        await handleInventoryFailed(event);
+                        break;
+
+                    default:
+                        console.log('Unknown event:', event.eventType);
+                }
+            }
+        });
+
+        console.log('✅ Kafka setup complete');
+    } catch (e) {
+        console.warn('⚠️ Order Kafka unavailable:', e.message);
+        kafkaProducer = null;
+        kafkaConsumer = null;
+    }
+};
+
+setupKafka().catch((e) => console.warn('Kafka setup:', e.message));
 
 // ============ EVENT HANDLERS ============
 
@@ -132,7 +148,7 @@ const handlePaymentSuccess = async (event) => {
     );
     
     // Notify user via Kafka
-    await kafkaProducer.send({
+    await safeKafkaSend({
         topic: TOPICS.NOTIFICATION_EVENTS,
         messages: [{
             key: orderId.toString(),
@@ -157,7 +173,7 @@ const handlePaymentFailure = async (event) => {
     );
     
     // Release inventory (if it was reserved)
-    await kafkaProducer.send({
+    await safeKafkaSend({
         topic: TOPICS.INVENTORY_EVENTS,
         messages: [{
             key: orderId.toString(),
@@ -190,7 +206,7 @@ const handleInventoryFailed = async (event) => {
     );
     
     // Notify user
-    await kafkaProducer.send({
+    await safeKafkaSend({
         topic: TOPICS.NOTIFICATION_EVENTS,
         messages: [{
             key: orderId.toString(),
@@ -254,7 +270,7 @@ const processPayment = async (orderId) => {
         console.error(`Payment processing failed for order ${orderId}:`, error.message);
         
         // Send payment failed event
-        await kafkaProducer.send({
+        await safeKafkaSend({
             topic: TOPICS.ORDER_PAYMENT,
             messages: [{
                 key: orderId.toString(),
@@ -346,7 +362,7 @@ app.post('/api/v1/orders', async (req, res) => {
             });
             
             // Send order created event to Kafka
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.ORDER_EVENTS,
                 messages: [{
                     key: order.id.toString(),
@@ -363,7 +379,7 @@ app.post('/api/v1/orders', async (req, res) => {
             });
             
             // Request inventory reservation
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.INVENTORY_EVENTS,
                 messages: [{
                     key: order.id.toString(),
@@ -510,7 +526,7 @@ app.put('/api/v1/orders/:id/cancel', async (req, res) => {
         );
         
         // Release inventory
-        await kafkaProducer.send({
+        await safeKafkaSend({
             topic: TOPICS.INVENTORY_EVENTS,
             messages: [{
                 key: orderId.toString(),
@@ -529,6 +545,10 @@ app.put('/api/v1/orders/:id/cancel', async (req, res) => {
         console.error('Cancel order error:', error);
         res.status(500).json({ error: 'Failed to cancel order' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'order-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

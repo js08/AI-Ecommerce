@@ -5,15 +5,17 @@
 // ============================================
 
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const Redis = require('ioredis');
-const { createProducer, TOPICS } = require('../../shared/kafka-config');
+const { createProducer, TOPICS } = require('../shared/kafka-config');
 const validator = require('validator');  // Email validation
 const crypto = require('crypto');  // For generating reset tokens
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // ============ DATABASE CONNECTION ============
@@ -31,14 +33,15 @@ const db = new Pool({
     connectionTimeoutMillis: 2000  // Fail fast if can't connect
 });
 
-// Test database connection on startup
+// Test database connection on startup (do not exit — allow /health while DB comes up)
 db.connect((err, client, release) => {
     if (err) {
         console.error('❌ Database connection failed:', err.stack);
-        process.exit(1);  // Exit if database is down
+        console.warn('⚠️ User service continues; auth routes need PostgreSQL.');
+    } else {
+        console.log('✅ PostgreSQL connected');
+        release();
     }
-    console.log('✅ PostgreSQL connected');
-    release();
 });
 
 // ============ DATABASE SCHEMA INITIALIZATION ============
@@ -92,7 +95,7 @@ const initDatabase = async () => {
     await db.query('CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)');
 };
 
-initDatabase();
+initDatabase().catch((e) => console.error('initDatabase:', e.message));
 
 // ============ REDIS CONNECTION (Session Storage) ============
 
@@ -110,11 +113,16 @@ const redis = new Redis({
 let kafkaProducer = null;
 
 const setupKafka = async () => {
-    kafkaProducer = await createProducer('user-service');
-    console.log('✅ Kafka producer ready');
+    try {
+        kafkaProducer = await createProducer('user-service');
+        console.log('✅ Kafka producer ready');
+    } catch (e) {
+        console.warn('⚠️ Kafka unavailable (events disabled):', e.message);
+        kafkaProducer = null;
+    }
 };
 
-setupKafka();
+setupKafka().catch((e) => console.warn('Kafka setup:', e.message));
 
 // ============ HELPER FUNCTIONS ============
 
@@ -687,6 +695,10 @@ app.post('/api/v1/auth/reset-password', async (req, res) => {
         console.error('Reset password error:', error);
         res.status(500).json({ error: 'Failed to reset password' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'user-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

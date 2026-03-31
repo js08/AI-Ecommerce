@@ -5,11 +5,13 @@
 
 const express = require('express');
 const { Pool } = require('pg');
-const { createProducer, TOPICS } = require('../../shared/kafka-config');
+const { createProducer, TOPICS } = require('../shared/kafka-config');
 const Stripe = require('stripe');
 const crypto = require('crypto');
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // Initialize Stripe with secret key
@@ -57,18 +59,32 @@ const initDatabase = async () => {
     console.log('✅ Payment database tables ready');
 };
 
-initDatabase();
+initDatabase().catch((e) => console.error('Payment initDatabase:', e.message));
 
 // ============ KAFKA SETUP ============
 
 let kafkaProducer = null;
 
 const setupKafka = async () => {
-    kafkaProducer = await createProducer('payment-service');
-    console.log('✅ Kafka producer ready');
+    try {
+        kafkaProducer = await createProducer('payment-service');
+        console.log('✅ Kafka producer ready');
+    } catch (e) {
+        console.warn('⚠️ Payment Kafka unavailable:', e.message);
+        kafkaProducer = null;
+    }
 };
 
-setupKafka();
+setupKafka().catch((e) => console.warn('Kafka setup:', e.message));
+
+const safeKafkaSend = async (payload) => {
+    if (!kafkaProducer) return;
+    try {
+        await kafkaProducer.send(payload);
+    } catch (e) {
+        console.warn('Kafka send:', e.message);
+    }
+};
 
 // ============ HELPER FUNCTIONS ============
 
@@ -143,7 +159,7 @@ app.post('/api/v1/payments/process', async (req, res) => {
         );
         
         // Send payment initiated event
-        await kafkaProducer.send({
+        await safeKafkaSend({
             topic: TOPICS.ORDER_PAYMENT,
             messages: [{
                 key: orderId.toString(),
@@ -169,7 +185,7 @@ app.post('/api/v1/payments/process', async (req, res) => {
         console.error('Payment processing error:', error);
         
         // Send payment failed event
-        await kafkaProducer.send({
+        await safeKafkaSend({
             topic: TOPICS.ORDER_PAYMENT,
             messages: [{
                 key: req.body.orderId?.toString() || 'unknown',
@@ -222,7 +238,7 @@ app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), 
             // Send success event to Kafka
             const orderId = paymentIntent.metadata.orderId;
             
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.ORDER_PAYMENT,
                 messages: [{
                     key: orderId,
@@ -248,7 +264,7 @@ app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json' }), 
                 [failedPayment.last_payment_error?.message, failedPayment.id]
             );
             
-            await kafkaProducer.send({
+            await safeKafkaSend({
                 topic: TOPICS.ORDER_PAYMENT,
                 messages: [{
                     key: failedPayment.metadata.orderId,
@@ -312,6 +328,10 @@ app.get('/api/v1/payments/history', async (req, res) => {
         console.error('Payment history error:', error);
         res.status(500).json({ error: 'Failed to get payment history' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'payment-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

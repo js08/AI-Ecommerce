@@ -4,12 +4,14 @@
 // ============================================
 
 const express = require('express');
-const { createConsumer, TOPICS } = require('../../shared/kafka-config');
+const { createConsumer, TOPICS } = require('../shared/kafka-config');
 const nodemailer = require('nodemailer');  // For emails
 const twilio = require('twilio');  // For SMS
 const admin = require('firebase-admin');  // For push notifications
+const { devCors } = require('../shared/dev-cors');
 
 const app = express();
+app.use(devCors());
 app.use(express.json());
 
 // ============ EMAIL SETUP (using Gmail SMTP) ============
@@ -23,11 +25,17 @@ const emailTransporter = nodemailer.createTransport({
     }
 });
 
-// ============ SMS SETUP (Twilio) ============
-const twilioClient = twilio(
-    process.env.TWILIO_ACCOUNT_SID || 'your_account_sid',
-    process.env.TWILIO_AUTH_TOKEN || 'your_auth_token'
-);
+// ============ SMS SETUP (Twilio) — only when real credentials exist ============
+let twilioClient = null;
+function getTwilio() {
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    if (sid && token && String(sid).startsWith('AC')) {
+        if (!twilioClient) twilioClient = twilio(sid, token);
+        return twilioClient;
+    }
+    return null;
+}
 
 // ============ PUSH NOTIFICATION SETUP (Firebase) ============
 // Initialize Firebase Admin SDK
@@ -45,44 +53,48 @@ try {
 // ============ KAFKA SETUP ============
 
 const setupKafka = async () => {
-    const consumer = await createConsumer(
-        'notification-service',
-        'notification-service-group',
-        [TOPICS.NOTIFICATION_EVENTS, TOPICS.ORDER_EVENTS, TOPICS.USER_EVENTS]
-    );
-    
-    await consumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-            const event = JSON.parse(message.value.toString());
-            console.log(`📧 Notification service received: ${event.eventType}`);
-            
-            switch (event.eventType) {
-                case 'USER_REGISTERED':
-                    await sendWelcomeEmail(event);
-                    break;
-                    
-                case 'ORDER_CONFIRMED':
-                    await sendOrderConfirmation(event);
-                    break;
-                    
-                case 'ORDER_FAILED':
-                    await sendOrderFailedNotification(event);
-                    break;
-                    
-                case 'PASSWORD_RESET_REQUESTED':
-                    await sendPasswordResetEmail(event);
-                    break;
-                    
-                default:
-                    console.log('Unknown notification event:', event.eventType);
+    try {
+        const consumer = await createConsumer(
+            'notification-service',
+            'notification-service-group',
+            [TOPICS.NOTIFICATION_EVENTS, TOPICS.ORDER_EVENTS, TOPICS.USER_EVENTS]
+        );
+
+        await consumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                const event = JSON.parse(message.value.toString());
+                console.log(`📧 Notification service received: ${event.eventType}`);
+
+                switch (event.eventType) {
+                    case 'USER_REGISTERED':
+                        await sendWelcomeEmail(event);
+                        break;
+
+                    case 'ORDER_CONFIRMED':
+                        await sendOrderConfirmation(event);
+                        break;
+
+                    case 'ORDER_FAILED':
+                        await sendOrderFailedNotification(event);
+                        break;
+
+                    case 'PASSWORD_RESET_REQUESTED':
+                        await sendPasswordResetEmail(event);
+                        break;
+
+                    default:
+                        console.log('Unknown notification event:', event.eventType);
+                }
             }
-        }
-    });
-    
-    console.log('✅ Kafka consumer ready');
+        });
+
+        console.log('✅ Kafka consumer ready');
+    } catch (e) {
+        console.warn('⚠️ Notification Kafka unavailable:', e.message);
+    }
 };
 
-setupKafka();
+setupKafka().catch((e) => console.warn('Kafka setup:', e.message));
 
 // ============ NOTIFICATION SENDERS ============
 
@@ -188,12 +200,16 @@ const sendPasswordResetEmail = async (event) => {
 const sendOrderFailedNotification = async (event) => {
     const { orderId, reason } = event;
     
-    // Send SMS for critical failures
     try {
-        await twilioClient.messages.create({
+        const client = getTwilio();
+        if (!client) {
+            console.warn('Twilio not configured; skipping SMS for order failure');
+            return;
+        }
+        await client.messages.create({
             body: `Order #${orderId} failed: ${reason}. Please contact support.`,
             from: process.env.TWILIO_PHONE_NUMBER,
-            to: process.env.CUSTOMER_PHONE_NUMBER  // Would come from user profile
+            to: process.env.CUSTOMER_PHONE_NUMBER
         });
         console.log(`SMS sent for order ${orderId} failure`);
     } catch (error) {
@@ -239,6 +255,10 @@ app.get('/api/v1/notifications/history', async (req, res) => {
         console.error('Get history error:', error);
         res.status(500).json({ error: 'Failed to get history' });
     }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'notification-service', timestamp: new Date().toISOString() });
 });
 
 // ========== START SERVER ==========

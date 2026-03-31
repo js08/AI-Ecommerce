@@ -10,7 +10,12 @@
  * - Output: probability of user-item interaction
  */
 
-const tf = require('@tensorflow/tfjs-node');
+let tf;
+try {
+  tf = require('@tensorflow/tfjs-node');
+} catch {
+  tf = require('@tensorflow/tfjs');
+}
 const { logger } = require('../utils/logger');
 
 class RecommendationEngine {

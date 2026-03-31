@@ -1,7 +1,39 @@
 // Kafka configuration shared across all microservices
 // This ensures consistent setup across the entire system
+//
+// Resolve kafkajs from a service's node_modules (Node does not look in ../user-service/node_modules
+// when this file lives under shared/, so a bare require('kafkajs') fails).
 
-const { Kafka } = require('kafkajs');
+const path = require('path');
+const root = path.join(__dirname, '..');
+const serviceDirs = [
+  'user-service',
+  'product-service',
+  'cart-service',
+  'order-service',
+  'payment-service',
+  'inventory-service',
+  'notification-service',
+  'ai-service'
+];
+
+function resolveKafka() {
+  for (const dir of serviceDirs) {
+    try {
+      const modPath = require.resolve('kafkajs', { paths: [path.join(root, dir)] });
+      return require(modPath);
+    } catch (_) {
+      /* try next */
+    }
+  }
+  try {
+    return require(path.join(root, 'node_modules', 'kafkajs'));
+  } catch (_) {
+    return require('kafkajs');
+  }
+}
+
+const { Kafka } = resolveKafka();
 
 // Create Kafka client instance
 // Each service will create its own connection using this config
