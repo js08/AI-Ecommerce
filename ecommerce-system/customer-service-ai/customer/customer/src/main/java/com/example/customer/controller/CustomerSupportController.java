@@ -12,6 +12,13 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import java.time.Duration;
+
+// Inside the controller class, add:
+
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/support")
@@ -42,6 +49,19 @@ public class CustomerSupportController {
                 .flux();
     }
 
+
+
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> streamChat(@Valid @RequestBody ChatRequest request) {
+        return aiService.processMessage(request)
+                .flatMapMany(response -> Flux.just(
+                        ServerSentEvent.builder(response.getReply())
+                                .event("message")
+                                .id(response.getSessionId())
+                                .retry(Duration.ofSeconds(10))
+                                .build()
+                ));
+    }
     /**
      * Health check.
      */
