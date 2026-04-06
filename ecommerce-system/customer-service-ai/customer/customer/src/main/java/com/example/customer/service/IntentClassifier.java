@@ -4,10 +4,10 @@
 //}
 
 
-package com.ecommerce.customerservice.service;
+package com.example.customer.service;
 
-import com.ecommerce.customerservice.client.OpenAiClient;
-import com.ecommerce.customerservice.model.dto.IntentResult;
+import com.example.customer.client.OpenAiClient;
+import com.example.customer.model.dto.IntentResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

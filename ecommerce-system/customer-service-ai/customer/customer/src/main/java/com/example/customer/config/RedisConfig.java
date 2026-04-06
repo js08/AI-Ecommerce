@@ -3,7 +3,7 @@
 //public class RedisConfig {
 //}
 
-package com.ecommerce.customerservice.config;
+package com.example.customer.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

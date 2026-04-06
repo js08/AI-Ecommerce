@@ -4,7 +4,7 @@
 //}
 
 
-package com.ecommerce.customerservice.config;
+package com.example.customer.config;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;

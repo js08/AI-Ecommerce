@@ -5,9 +5,9 @@
 
 
 
-package com.ecommerce.customerservice.kafka;
+package com.example.customer.kafka;
 
-import com.ecommerce.customerservice.service.TicketService;
+import com.example.customer.service.TicketService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

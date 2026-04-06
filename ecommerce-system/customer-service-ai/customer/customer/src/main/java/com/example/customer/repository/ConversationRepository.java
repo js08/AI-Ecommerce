@@ -4,9 +4,9 @@
 //}
 
 
-package com.ecommerce.customerservice.repository;
+package com.example.customer.repository;
 
-import com.ecommerce.customerservice.model.Conversation;
+import com.example.customer.model.Conversation;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;

@@ -1,10 +1,11 @@
 
 
-package com.ecommerce.customerservice.controller;
+//package com.example.customer.controller;
+package com.example.customer.controller;
 
-import com.ecommerce.customerservice.model.dto.ChatRequest;
-import com.ecommerce.customerservice.model.dto.ChatResponse;
-import com.ecommerce.customerservice.service.AIService;
+import com.example.customer.model;
+import com.example.customer.model;
+import com.example.customer.service.AIService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

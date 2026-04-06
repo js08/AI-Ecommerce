@@ -4,7 +4,7 @@
 //}
 
 
-package com.ecommerce.customerservice.util;
+package com.example.customer.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

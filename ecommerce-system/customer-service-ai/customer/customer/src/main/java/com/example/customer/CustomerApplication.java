@@ -13,7 +13,7 @@
 //}
 
 
-package com.ecommerce.customerservice;
+package com.example.customer;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -31,11 +31,11 @@ import reactor.core.publisher.Hooks;
 @SpringBootApplication
 @EnableR2dbcRepositories
 @EnableKafka
-public class CustomerServiceApplication {
+public class CustomerApplication {
 
 	public static void main(String[] args) {
 		// Enable trace logging for reactive streams debugging (optional)
 		Hooks.enableAutomaticContextPropagation();
-		SpringApplication.run(CustomerServiceApplication.class, args);
+		SpringApplication.run(com.example.customer.CustomerApplication.class, args);
 	}
 }

@@ -4,9 +4,9 @@
 //}
 
 
-package com.ecommerce.customerservice.repository;
+package com.example.customer.repository;
 
-import com.ecommerce.customerservice.model.Ticket;
+import com.example.customer.model.Ticket;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 

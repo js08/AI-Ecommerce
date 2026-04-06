@@ -1,9 +1,9 @@
 
 
-package com.ecommerce.customerservice.service;
+package com.example.customer.service;
 
-import com.ecommerce.customerservice.model.Ticket;
-import com.ecommerce.customerservice.repository.TicketRepository;
+import com.example.customer.model.Ticket;
+import com.example.customer.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -5,9 +5,9 @@
 
 
 
-package com.ecommerce.customerservice.client;
+package com.example.customer.client;
 
-import com.ecommerce.customerservice.model.dto.IntentResult;
+import com.example.customer.model.dto.IntentResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

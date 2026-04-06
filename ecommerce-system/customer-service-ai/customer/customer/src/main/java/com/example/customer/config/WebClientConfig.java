@@ -5,7 +5,7 @@
 
 
 
-package com.ecommerce.customerservice.config;
+package com.example.customer.config;
 
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;

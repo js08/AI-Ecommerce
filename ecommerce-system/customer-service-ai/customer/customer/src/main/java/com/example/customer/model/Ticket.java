@@ -4,7 +4,7 @@
 //}
 
 
-package com.ecommerce.customerservice.model;
+package com.example.customer.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

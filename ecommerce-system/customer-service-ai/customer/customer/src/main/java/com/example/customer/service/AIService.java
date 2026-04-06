@@ -1,11 +1,14 @@
-package com.ecommerce.customerservice.service;
+//package com.example.customer.service;
 
-import com.ecommerce.customerservice.client.OpenAiClient;
-import com.ecommerce.customerservice.kafka.ChatEventProducer;
-import com.ecommerce.customerservice.model.Conversation;
-import com.ecommerce.customerservice.model.dto.ChatRequest;
-import com.ecommerce.customerservice.model.dto.ChatResponse;
-import com.ecommerce.customerservice.model.dto.IntentResult;
+        package com.example.customer.service;
+
+
+import com.example.customer.client.OpenAiClient;
+import com.example.customer.kafka.ChatEventProducer;
+import com.example.customer.model.Conversation;
+import com.example.customer.model.dto.ChatRequest;
+import com.example.customer.model.dto.ChatResponse;
+import com.example.customer.model.dto.IntentResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

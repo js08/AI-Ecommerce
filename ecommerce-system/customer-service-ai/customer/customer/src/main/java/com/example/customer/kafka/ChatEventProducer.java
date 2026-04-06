@@ -4,7 +4,7 @@
 //}
 
 
-package com.ecommerce.customerservice.kafka;
+package com.example.customer.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -4,7 +4,7 @@
 //}
 
 
-package com.ecommerce.customerservice.exception;
+package com.example.customer.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
