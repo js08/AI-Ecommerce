@@ -80,3 +80,32 @@ exports.deleteAllLaps = async (req, res) => {
     res.status(500).json({ message: 'Error clearing history', error: error.message });
   }
 };
+
+
+
+// const Lap = require('../models/Lap');
+// const analyticsService = require('../services/analyticsService');
+
+/**
+ * Handles the "analyze-even-list" request
+ */
+exports.getEvenPatternsList = async (req, res) => {
+  try {
+    // 1. Get 'k' from the URL query: /analyze-even-list?k=3
+    const k = parseInt(req.query.k);
+
+    // 2. Fetch all laps from Postgres using Sequelize
+    // Replaces lapRepository.findAll()
+    const allLaps = await Lap.findAll();
+    console.log("Found Laps Count:", allLaps.length);
+    console.log("First Lap from DB:", allLaps[0] ? allLaps[0].toJSON() : "No data found");
+
+    // 3. Call the service logic
+    const results = analyticsService.getEvenSumWindows(allLaps, k);
+
+    // 4. Send the array of objects back as JSON
+    res.status(200).json(results);
+  } catch (error) {
+    res.status(500).json({ message: "Analysis failed", error: error.message });
+  }
+};

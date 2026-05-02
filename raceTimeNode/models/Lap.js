@@ -19,6 +19,7 @@ const Lap = sequelize.define('Lap', {
   // Define the 'durationMs' column
   durationMs: {
     type: DataTypes.INTEGER,      // Type: Integer (to store milliseconds)
+    field: 'duration_ms',
     allowNull: false,             // 'NOT NULL' constraint - every lap must have a time
     validate: {
       min: 0                      // Validation: A lap cannot be negative time
@@ -27,7 +28,11 @@ const Lap = sequelize.define('Lap', {
 }, {
   // 4. Additional Model Options
   tableName: 'laps',              // Explicitly name the table 'laps'
-  timestamps: true                // Automatically adds 'createdAt' and 'updatedAt' columns
+//   timestamps: true,
+  timestamps: false, // Set this to false
+
+  underscored: true  ,
+  sequelize              // Automatically adds 'createdAt' and 'updatedAt' columns
 });
 
 // 5. Export the model so the Controller can use it to save data

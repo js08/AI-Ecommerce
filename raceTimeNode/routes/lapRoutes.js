@@ -24,6 +24,7 @@ router.get('/', lapController.getAllLaps);
 // GET: http://localhost:8080/api/laps/analyze
 // Used to run your Sliding Window algorithm (AnalyticsService logic)
 router.get('/analyze', lapController.analyzePatterns);
+router.get('/analyze-even-list', lapController.getEvenPatternsList);
 
 // DELETE: http://localhost:8080/api/laps
 // Used to clear the entire history

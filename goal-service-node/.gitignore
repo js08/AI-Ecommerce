@@ -1,0 +1,28 @@
+# 1. DEPENDENCIES
+# This folder is huge. We don't upload it because others can 
+# generate it using 'npm install' based on the package.json.
+node_modules/
+
+# 2. SECRETS & CONFIGURATION
+# This contains your database passwords. NEVER upload this!
+.env
+
+# 3. OPERATING SYSTEM FILES
+# These are invisible files created by Windows or Mac (like folder icons)
+.DS_Store
+Thumbs.db
+
+# 4. LOGS
+# These are files created when your app crashes or runs into errors
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# 5. IDE SETTINGS (Optional)
+# If you use IntelliJ or VS Code, they create hidden folders for settings.
+.idea/
+.vscode/
+*.swp
+*.iml
