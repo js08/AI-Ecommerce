@@ -22,10 +22,10 @@ public class GoalConsumer {
      * It constantly watches the Kafka topic for new messages.
      */
 
-    @KafkaListener(topics = "goal-topic", groupId = "goal-service-group")
-    public void handleGoal(String result) {
-        System.out.println("Received raw string: " + result);
-    }
+//    @KafkaListener(topics = "goal-topic", groupId = "goal-service-group")
+//    public void handleGoal(String result) {
+//        System.out.println("Received raw string: " + result);
+//    }
 //    @KafkaListener(topics = "goal-topic", groupId = "goal-service-group")
 //    public void consumeGoalEvent(WindowResult result) {
 //
@@ -50,4 +50,23 @@ public class GoalConsumer {
 //        // 6. CONFIRMATION: Show that it was successfully saved to NoSQL
 //        System.out.println("⭐ Achievement successfully stored in MongoDB!");
 //    }
+    
+    @KafkaListener(topics = "goal-topic", groupId = "goal-service-group")
+    public void consumeGoalEvent(WindowResult result) {
+
+        System.out.println(" Received sum: " + result.getTotalSum());
+
+        String achievementMessage = "Milestone Reached! You hit sum "
+                + result.getTotalSum();
+
+        Achievement newAchievement = new Achievement(
+                achievementMessage,
+                result.getTotalSum(),
+                LocalDateTime.now()
+        );
+
+        goalRepository.save(newAchievement);
+
+        System.out.println("Saved to MongoDB");
+    }
 }

@@ -1,40 +1,27 @@
 package com.micro.goal.model;
 
-//public class Achievement {
-//}
-//
-//
-//package com.micro.goalService.model;
-
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-// 1. @Document: Tells Spring this class represents a MongoDB record (JSON-like)
-@Document(collection = "achievements")
+@Entity
+@Table(name = "achievements")
 public class Achievement {
 
-    @Id // 2. MongoDB uses String IDs (usually UUIDs) by default
-    private String id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    // 3. Simple fields to store the reward info
     private String message;
-    private int totalTime;
-    private LocalDateTime achievedAt;
+    private int totalSum;
+    private LocalDateTime createdAt;
 
-    // 4. Default Constructor (Required by Spring)
     public Achievement() {}
 
-    // 5. Parameterized Constructor to build the object quickly
-    public Achievement(String message, int totalTime, LocalDateTime achievedAt) {
+    public Achievement(String message, int totalSum, LocalDateTime createdAt) {
         this.message = message;
-        this.totalTime = totalTime;
-        this.achievedAt = achievedAt;
+        this.totalSum = totalSum;
+        this.createdAt = createdAt;
     }
 
-    // 6. Getters and Setters (So Spring can convert this to JSON for the API)
-    public String getId() { return id; }
-    public String getMessage() { return message; }
-    public int getTotalTime() { return totalTime; }
-    public LocalDateTime getAchievedAt() { return achievedAt; }
+    // Getters & Setters
 }
