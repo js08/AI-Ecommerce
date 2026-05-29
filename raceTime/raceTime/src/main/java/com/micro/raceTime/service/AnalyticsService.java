@@ -71,17 +71,17 @@ public class AnalyticsService {
 
         // Start the send process to the "goal-topic". This happens in the background.
         CompletableFuture<SendResult<String, WindowResult>> future =
-                kafkaTemplate.send("goal-topic", result);
+        		kafkaTemplate.send("goal-topic", String.valueOf(result.getTotalSum()), result);
 
         // Wait for Kafka to respond with either a "Success" or an "Error"
         future.whenComplete((success, ex) -> {
 
             if (ex == null) {
                 // If ex (exception) is null, it worked! Print where the message was stored.
-                System.out.println("✅ Sent to Kafka! Offset: " + success.getRecordMetadata().offset());
+                System.out.println("Sent to Kafka! Offset: " + success.getRecordMetadata().offset());
             } else {
                 // If there is an exception, the broker might be down. Log the error message.
-                System.err.println("❌ Kafka Error: " + ex.getMessage());
+                System.err.println("Kafka Error: " + ex.getMessage());
             }
         });
     }
